@@ -24,7 +24,9 @@ find $target/root/etc/yum* -type f -print |
 
 yum -y --installroot $target/root install $(cat /opt/fedora/packages)
 
-chroot $target/root /bin/bash <<EOF
+mkdir -p $target/root/opt/fedbuilder/bin
+cat > $target/root/opt/fedbuilder/bin/clean-locale <<EOF
+#!/bin/sh
 localedef --list | grep -v en_US | xargs -n1 localedef --delete-from-archive
 cd /usr/lib/locale
 > /usr/share/locale/locale.alias
@@ -32,6 +34,11 @@ cp locale-archive locale-archive.tmpl
 build-locale-archive
 cd /usr/share/locale
 ls | grep -v en_US | xargs rm -rf
+EOF
+
+chroot $target/root /bin/bash <<EOF
+sh /opt/fedbuilder/bin/clean-locale
+yum -y remove ustr
 yum clean all
 EOF
 
