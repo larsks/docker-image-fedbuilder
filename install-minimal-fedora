@@ -1,0 +1,38 @@
+#!/bin/sh
+
+target=$1
+[ -d "$target" ] || exit 1
+
+mkdir -p $target/root $target/root/etc
+
+cp /etc/yum.conf $target/root/etc
+cp -r /etc/yum.repos.d $target/root/etc
+cp -r /etc/resolv.conf $target/root/etc
+
+echo ======================================================================
+
+distinfo=$(yum version nogroups | awk '/^Installed:/ {print $2}')
+releasever=${distinfo%/*}
+basearch=${distinfo#*/}
+
+echo "from distinfo $distinfo, got releasever $releasever basearch $basearch"
+
+find $target/root/etc/yum* -type f -print |
+	xargs sed -i 's/\$basearch/'"$basearch"'/g'
+find $target/root/etc/yum* -type f -print |
+	xargs sed -i 's/\$releasever/'"$releasever"'/g'
+
+yum -y --installroot $target/root install $(cat /opt/fedora/packages)
+
+chroot $target/root /bin/bash <<EOF
+localedef --list | grep -v en_US | xargs -n1 localedef --delete-from-archive
+cd /usr/lib/locale
+> /usr/share/locale/locale.alias
+cp locale-archive locale-archive.tmpl
+build-locale-archive
+cd /usr/share/locale
+ls | grep -v en_US | xargs rm -rf
+yum clean all
+EOF
+
+tar -C $target/root -c -f $target/fedora-docker-image.tar .
